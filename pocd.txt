@@ -1,0 +1,156 @@
+# **Technical Architecture & Capabilities Document**
+
+## **1. Introduction**
+
+This document provides an in-depth overview of the system architecture, key components, and technical capabilities of the platform. It is designed to communicate the robustness, scalability, and security considerations of the solution. The architecture follows best practices in **Spring Boot microservices**, **transaction management**, **caching strategies**, **logging mechanisms**, and **audit capabilities**.
+
+---
+
+## **2. System Overview**
+
+The platform consists of multiple **Spring Boot microservices**, each responsible for distinct business functionalities. These services are deployed as **Windows services using WinSW** and are designed to ensure high availability and performance. The backend relies on an **SQL database** for transaction processing, while **Elastic Cache** optimizes data retrieval.
+
+### **Core Services & Responsibilities**
+
+| Service Name    | Description                                                         |
+| --------------- | ------------------------------------------------------------------- |
+| **CTX Service** | Processes cash transactions and submits them to SQL DB              |
+| **STX Service** | Processes securities transactions and submits them to SQL DB        |
+| **INY Service** | Read-only inquiry service fetching data from SQL DB                 |
+| **SWH Service** | Toggles system flags between EOD restriction and unrestricted modes |
+
+### **Common Module**
+
+A dedicated **Maven module (Common)** contains shared components, including utility classes, data models, logging configurations, and exception handling mechanisms. This ensures consistency across all services.
+
+---
+
+## **3. Deployment & Hosting Strategy**
+
+- **CTX, STX, and INY** services are deployed as **Windows services** using **WinSW**, allowing for **automatic restarts and monitoring**.
+- **SWH** service operates as a **command-line process** triggered by an **EOD SQL job**.
+- Services are packaged using **Maven**, with each service bundled into a **ZIP archive** containing dependencies, configuration files, and executables.
+- Each service runs independently, ensuring **modular scaling** based on demand.
+- **Dynamic Configuration Management:** Uses **Spring Environment Package** to dynamically load environment-specific configurations (`application-uat.properties`, `application-prod.properties`) during deployment, ensuring flexibility across multiple environments.
+
+---
+
+## **4. API & Service Capabilities**
+
+### **CTX & STX Services (Transaction Processing)**
+
+- Implemented using **Apache CXF** to expose **SOAP-based web services**.
+- Secured with **Spring Security**, enforcing IP-based access control.
+- Transactions follow the **ACID properties**, ensuring consistency in financial operations.
+- **Spring Transaction Management** enables commit/rollback operations based on transaction success/failure.
+- Database interactions are optimized using **Spring JDBC Template** with connection pooling.
+
+### **INY Service (Read-Only Inquiry API)**
+
+- Provides **RESTful APIs** for customer, account, portfolio, and asset data.
+- **Elastic Cache integration** improves response times for frequently accessed data.
+- Implements **event-driven cache updates**, receiving real-time notifications from the Main Platform.
+- If cache data is unavailable, queries SQL DB to maintain **data integrity**.
+- Uses **Strategy Pattern** for dynamic pricing calculations.
+- Implements **Spring Email alerts** for critical threshold breaches.
+
+INY Service (Read-Only Inquiry API)
+
+Provides RESTful APIs for customer, account, portfolio, and asset data.
+
+Elastic Cache integration improves response times for frequently accessed data.
+
+Spring Batch is used to refresh cache data daily, ensuring data accuracy.
+
+Implements event-driven cache updates, receiving real-time notifications from the Main Platform.
+
+If cache data is unavailable, queries SQL DB to maintain data integrity.
+
+Uses Strategy Pattern for dynamic pricing calculations.
+
+Implements Spring Email alerts for critical threshold breaches.
+
+
+
+### **SWH Service (EOD Processing Engine)**
+
+- Triggered via an **SQL job** at EOD, initiating **system state transitions**.
+- Invokes a **REST API** on the Main Platform to execute EOD logic.
+- Dynamically switches between **primary and secondary databases**, ensuring **seamless failover**.
+
+---
+
+## **5. Database Interaction & Connection Pooling**
+
+- **CTX, STX, and INY services** utilize **Spring DataSource** with **connection pooling**.
+- Pool starts with **5 connections** and scales based on load.
+- **Automatic idle connection cleanup** ensures optimal resource utilization.
+- **INY Service maintains read-only connections**, improving DB efficiency.
+
+---
+
+## **6. Build & Deployment Process**
+
+- **Maven-based build pipeline** generates individual service artifacts.
+- **Common module** is copied into each service during packaging.
+- Each service package includes:
+  - Dependency JARs
+  - Windows service executable (.exe)
+  - Application configuration files (`application-uat.properties`, `application-prod.properties`).
+- **Spring Profile-based Configurations:** Each service reads the correct environment-specific configurations dynamically using `@Value` and `@ConfigurationProperties`, ensuring minimal downtime and configuration consistency.
+- Services are deployed as **Windows services** for automated startup and monitoring.
+
+---
+
+## **7. Logging & Monitoring**
+
+### **Logback Configuration**
+
+- **Application Log (****`application.log`****)**: Captures system-wide events, warnings, and errors.
+- **Service Log (****`service.log`****)**: Records SOAP requests, responses, execution times, and success/failure status.
+
+### **ELK Stack Integration**
+
+- **Filebeat** collects logs from Windows servers.
+- **Logstash** parses and transforms logs before forwarding them to **Elastic Cloud**.
+- **Watcher alerts** notify the team of critical failures or anomalies.
+
+### **Spring Boot Actuator**
+
+- Exposes **custom health, environment, and info endpoints** for proactive monitoring.
+
+---
+
+## **8. Security & Authentication**
+
+- **CTX & STX Services** enforce **IP-based security validation**.
+- **INY Service** applies **role-based access control (RBAC)**.
+- **Audit Logging** tracks all sensitive operations for compliance and review.
+- Services run using **Windows service accounts**, which have the required access to **NAS folders** and **local system storage**. Authentication is managed through **Active Directory (AD)**, ensuring secure access control and adherence to enterprise security policies.
+
+---
+
+## **9. Audit Service Integration**
+
+- **Audit Client Components** embedded in CTX, STX, and INY services.
+- Every transaction processed in **CTX & STX** generates an audit entry.
+- Logs are stored in an **Audit Database**, ensuring regulatory compliance.
+
+---
+
+## **10. Scalability & Future Enhancements**
+
+### **Short-Term Enhancements**
+
+- Introduce **Circuit Breaker (Resilience4J)** for failover handling.
+- Implement **Asynchronous Processing** where applicable for better performance.
+- Implement **Dynamic Configuration Reloading** using **Spring Cloud Config**, allowing real-time updates to configuration properties without service restarts.
+
+### **Long-Term Enhancements**
+
+- Transition to **Kafka-based event-driven architecture** for inter-service communication.
+- Implement **OAuth2 or JWT-based authentication** for enhanced API security.
+- Optimize **Elastic Cache eviction strategy** to improve data freshness.
+- Explore **Kubernetes-based deployment** for containerized scalability.
+
+
